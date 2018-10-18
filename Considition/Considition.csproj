@@ -62,7 +62,6 @@
     <Compile Include="RestApi\Models\Ironman\WaterStream.cs" />
     <Compile Include="RestApi\Models\Response\ApiResponse.cs" />
     <Compile Include="RestApi\Models\Response\GameStateApiResponse.cs" />
-    <Compile Include="State.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
