@@ -32,13 +32,13 @@ namespace Considition.RestApi
             }
         }
 
-        private static void HandleApiResponse(IRestResponse response)
+        private static bool HasErrors(IRestResponse response)
         {
             if (response.ErrorException != null)
             {
                 var message = $"Error: {response.ErrorMessage}";
                 LogError(message);
-                throw new Exception(message);
+	            return true;
             }
 
             dynamic result = JsonConvert.DeserializeObject(response.Content);
@@ -46,8 +46,10 @@ namespace Considition.RestApi
             {
                 string message = result.message.ToString();
                 LogError($"Game error: {message}");
-                throw new Exception(message);
+	            return true;
             }
+
+	        return false;
         }
 
         private static GameState GetGameState(string jsonResponse)
@@ -69,7 +71,7 @@ namespace Considition.RestApi
             var request = new RestRequest("games", Method.POST);
             request.AddJsonBody(new { maxPlayers, map, numberOfStreams, numberOfElevations, numberOfPowerups });
             var response = Client.Execute(request);
-            HandleApiResponse(response);
+            HasErrors(response);
 
             dynamic result = JsonConvert.DeserializeObject(response.Content);
             Log($"Created new game: {result.gameId}");
@@ -78,10 +80,14 @@ namespace Considition.RestApi
 
         public static GameState GetGame(string gameId)
         {
-	        Log($"Getting game: {gameId}");
-            var request = new RestRequest($"games/{gameId}/{_apiKey}", Method.GET);
-            var response = Client.Execute(request);
-            HandleApiResponse(response);
+	        var request = new RestRequest($"games/{gameId}/{_apiKey}", Method.GET);
+            IRestResponse response;
+	        do
+	        {
+		        Log($"Getting game: {gameId}");
+		        response = Client.Execute(request);
+	        } while (HasErrors(response));
+
             return GetGameState(response.Content);
         }
 
@@ -89,7 +95,7 @@ namespace Considition.RestApi
         {
             var request = new RestRequest($"games/{gameId}/join", Method.POST);
             var response = Client.Execute(request);
-            HandleApiResponse(response);
+            HasErrors(response);
             Log($"Joined game: {gameId}");
             return GetGameState(response.Content);
         }
@@ -99,7 +105,7 @@ namespace Considition.RestApi
             Log("Readying up!");
             var request = new RestRequest($"games/{gameId}/ready", Method.POST);
             var response = Client.Execute(request);
-            HandleApiResponse(response);
+            HasErrors(response);
             return GetGameState(response.Content);
         }
 
@@ -113,7 +119,7 @@ namespace Considition.RestApi
 	                Log("Trying to ready up!");
                     var request = new RestRequest($"games/{gameId}/ready", Method.POST);
                     var response = Client.Execute(request);
-                    HandleApiResponse(response);
+                    HasErrors(response);
                     return GetGameState(response.Content);
                 }
                 catch (Exception)
@@ -128,9 +134,8 @@ namespace Considition.RestApi
             var request = new RestRequest($"games/{gameId}/action/move", Method.POST);
             request.AddJsonBody(new { speed, direction });
 	        Log($"Attempting to makeMove with speed: {speed} and direction: {direction}");
-            var response = Client.Execute(request);
-            HandleApiResponse(response);
-            return GetGameState(response.Content);
+	        var response = Client.Execute(request);
+	        return HasErrors(response) ? GetGame(gameId) : GetGameState(response.Content);
         }
 
         public static GameState Step(string gameId, string direction)
@@ -139,8 +144,7 @@ namespace Considition.RestApi
             request.AddJsonBody(new { direction });
 	        Log($"Attempting to step in direction: {direction}");
             var response = Client.Execute(request);
-            HandleApiResponse(response);
-            return GetGameState(response.Content);
+	        return HasErrors(response) ? GetGame(gameId) : GetGameState(response.Content);
         }
 
         public static GameState Rest(string gameId)
@@ -148,8 +152,7 @@ namespace Considition.RestApi
             var request = new RestRequest($"games/{gameId}/action/rest", Method.POST);
 	        Log("Attempting to rest!");
             var response = Client.Execute(request);
-            HandleApiResponse(response);
-            return GetGameState(response.Content);
+	        return HasErrors(response) ? GetGame(gameId) : GetGameState(response.Content);
         }
 
         public static GameState UsePowerup(string gameId, string powerupName)
@@ -158,8 +161,7 @@ namespace Considition.RestApi
             request.AddJsonBody(new { name = powerupName });
 	        Log($"Attempting to use powerup: {powerupName}");
             var response = Client.Execute(request);
-            HandleApiResponse(response);
-            return GetGameState(response.Content);
+	        return HasErrors(response) ? GetGame(gameId) : GetGameState(response.Content);
         }
 
 	    public static GameState DropPowerup(string gameId, string powerupName)
@@ -168,8 +170,7 @@ namespace Considition.RestApi
 		    request.AddJsonBody(new { name = powerupName });
 		    Log($"Attempting to drop powerup: {powerupName}");
 		    var response = Client.Execute(request);
-		    HandleApiResponse(response);
-		    return GetGameState(response.Content);
+		    return HasErrors(response) ? GetGame(gameId) : GetGameState(response.Content);
 	    }
 
 	    public static void EndPreviousGamesIfAny()
